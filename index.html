@@ -185,8 +185,10 @@ const DEFAULT={
 // localStorage 安全包裝（file:// 或隱私模式下不會崩潰）
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
-let DB=load();
+let DB=load();migrate();
 function load(){try{const r=JSON.parse(lsGet(KEY));return r&&r.settings?r:structuredClone(DEFAULT)}catch(e){return structuredClone(DEFAULT)}}
+// 舊資料相容：把以前用付款方式標「已取消」的訂閱，自動歸到已取消狀態
+function migrate(){(DB.subscriptions||[]).forEach(s=>{if(!s.status)s.status=(s.payMethod==='已取消'||s.payMethod==='取消')?'canceled':'active'})}
 function save(){if(!lsSet(KEY,JSON.stringify(DB))){document.getElementById('saveWarn')&&(document.getElementById('saveWarn').style.display='block')}render();scheduleCloudPush()}
 function uid(arr){return arr.length?Math.max(...arr.map(x=>x.id))+1:1}
 
@@ -212,7 +214,7 @@ function sumAssets(){return DB.assets.reduce((a,x)=>a+x.value,0)}
 function sumLoans(){return DB.loans.reduce((a,x)=>a+(x.remaining||0),0)}
 function netWorth(){return sumAccounts()+sumStocks()+sumBonds()+sumAssets()-sumLoans()}
 function realizedPnL(){return DB.transactions.filter(t=>t.category==='已實現損益').reduce((a,t)=>a+(t.type==='income'?t.amount:-t.amount),0)}
-function monthlySubsTWD(){return DB.subscriptions.reduce((a,s)=>{let m=toTWD(s.amount,s.currency);if(s.cycle==='年')m/=12;return a+m},0)}
+function monthlySubsTWD(){return DB.subscriptions.filter(s=>s.status!=='canceled').reduce((a,s)=>{let m=toTWD(s.amount,s.currency);if(s.cycle==='年')m/=12;return a+m},0)}
 function daysUntil(d){const t=new Date(d);const now=new Date('2026-06-30');return Math.ceil((t-now)/86400000)}
 
 /* ============ 導覽 ============ */
@@ -249,7 +251,7 @@ function render(){
 
 /* ---- 總覽 ---- */
 function vOverview(){
-  const upcoming=[...DB.subscriptions.map(s=>({name:s.name,amt:toTWD(s.amount,s.currency),cur:s.currency,raw:s.amount,date:s.nextDate,pay:s.payMethod})),
+  const upcoming=[...DB.subscriptions.filter(s=>s.status!=='canceled').map(s=>({name:s.name,amt:toTWD(s.amount,s.currency),cur:s.currency,raw:s.amount,date:s.nextDate,pay:s.payMethod})),
     ...DB.insurance.filter(i=>i.renewDate).map(i=>({name:i.name,amt:i.premium,cur:'TWD',raw:i.premium,date:i.renewDate,pay:i.payMethod}))]
     .map(x=>({...x,d:daysUntil(x.date)})).filter(x=>x.d>=0&&x.d<=30).sort((a,b)=>a.d-b.d);
   const tx=[...DB.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
@@ -372,17 +374,37 @@ function vInsurance(){
 }
 
 /* ---- 訂閱 ---- */
+function subAmt(s){return s.currency==='USD'?'$'+(s.amount||0):'NT$'+(s.amount||0).toLocaleString()}
 function vSubs(){
-  return `<div class="grid cards2">
-    <div class="card"><div class="label">每月訂閱合計</div><div class="big">${fmt(monthlySubsTWD())}</div></div>
-    <div class="card"><div class="label">年化支出</div><div class="big">${fmt(monthlySubsTWD()*12)}</div></div>
-  </div>`+
-  pageHead('訂閱明細',"openForm('subs')")+
+  const active=DB.subscriptions.filter(s=>s.status!=='canceled');
+  const canceled=DB.subscriptions.filter(s=>s.status==='canceled');
+  const monthly=monthlySubsTWD();
+  let html=`<div class="grid cards3">
+    <div class="card"><div class="label">每月固定支出（續訂中）</div><div class="big">${fmt(monthly)}</div><div class="note">共 ${active.length} 項</div></div>
+    <div class="card"><div class="label">年化支出（續訂中）</div><div class="big">${fmt(monthly*12)}</div></div>
+    <div class="card"><div class="label">已取消（不再續訂）</div><div class="big">${canceled.length} 項</div><div class="note">到期後自動停扣</div></div>
+  </div>`;
+  // 續訂中
+  html+=pageHead('🔁 續訂中',"openForm('subs')")+
   `<table><thead><tr><th>服務</th><th>週期</th><th>下次扣款</th><th>付款方式</th><th class="num">金額</th><th></th></tr></thead><tbody>
-  ${DB.subscriptions.map(s=>{const d=daysUntil(s.nextDate);
-    return `<tr><td>${s.name}</td><td><span class="tag">${s.cycle}繳</span></td><td>${s.nextDate||''} ${d>=0&&d<=14?`<span class="neg">(${d}天)</span>`:''}</td><td>${s.payMethod||''}</td>
-    <td class="num">${s.currency==='USD'?'$'+s.amount:'NT$'+s.amount.toLocaleString()}</td><td>${actBtns('subs',s.id)}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">尚無訂閱</td></tr>'}
+  ${active.sort((a,b)=>(a.nextDate||'').localeCompare(b.nextDate||'')).map(s=>{const d=daysUntil(s.nextDate);
+    return `<tr><td style="font-weight:600">${s.name}</td><td><span class="tag">${s.cycle}繳</span></td>
+    <td>${s.nextDate||'—'} ${(s.nextDate&&d>=0&&d<=14)?`<span class="neg">(${d}天後)</span>`:''}</td><td>${s.payMethod||''}</td>
+    <td class="num">${subAmt(s)}</td><td>${actBtns('subs',s.id)}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">沒有續訂中的訂閱</td></tr>'}
   </tbody></table></div>`;
+  // 已取消
+  if(canceled.length){
+    html+=`<div class="panel"><h3 style="color:var(--muted)">🚫 已取消／到期後不再扣款</h3>
+    <table><thead><tr><th>服務</th><th>週期</th><th>到期日</th><th class="num">原金額</th><th>狀態</th><th></th></tr></thead><tbody>
+    ${canceled.sort((a,b)=>(a.endDate||a.nextDate||'').localeCompare(b.endDate||b.nextDate||'')).map(s=>{
+      const end=s.endDate||s.nextDate||'';const d=end?daysUntil(end):null;const ended=d!==null&&d<0;
+      return `<tr style="opacity:${ended?0.45:0.85}"><td>${s.name}</td><td><span class="tag">${s.cycle}繳</span></td>
+      <td>${end||'—'} ${d!==null?(ended?'':`<span class="note">(剩${d}天到期)</span>`):''}</td>
+      <td class="num">${subAmt(s)}</td><td>${ended?'<span class="tag">已結束</span>':'<span class="tag" style="color:var(--accent)">待到期</span>'}</td>
+      <td>${actBtns('subs',s.id)}</td></tr>`}).join('')}
+    </tbody></table></div>`;
+  }
+  return html;
 }
 
 /* ---- 貸款 ---- */
@@ -436,9 +458,14 @@ const FORMS={
     {k:'insured',l:'被保人',t:'text'},{k:'freq',l:'繳別',t:'select',o:[['年繳','年繳'],['月繳','月繳'],['半年繳','半年繳']]},
     {k:'premium',l:'保費(TWD)',t:'number'},{k:'coverage',l:'保額(TWD)',t:'number'},{k:'renewDate',l:'續約/扣款日',t:'date'},{k:'payMethod',l:'付款方式',t:'text'}]},
   subs:{title:'訂閱',list:'subscriptions',fields:[
-    {k:'name',l:'服務名稱',t:'text'},{k:'amount',l:'金額',t:'number'},
+    {k:'name',l:'服務名稱',t:'text'},
+    {k:'status',l:'狀態',t:'select',o:[['active','續訂中'],['canceled','已取消(到期後不再扣款)']]},
+    {k:'amount',l:'金額',t:'number'},
     {k:'currency',l:'幣別',t:'select',o:[['TWD','TWD'],['USD','USD']]},
-    {k:'cycle',l:'週期',t:'select',o:[['月','月'],['年','年']]},{k:'nextDate',l:'下次扣款日',t:'date'},{k:'payMethod',l:'付款方式',t:'text'}]},
+    {k:'cycle',l:'週期',t:'select',o:[['月','月'],['年','年']]},
+    {k:'nextDate',l:'下次扣款日（續訂中填）',t:'date'},
+    {k:'endDate',l:'到期日（已取消填這格）',t:'date'},
+    {k:'payMethod',l:'付款方式',t:'text'}]},
   loans:{title:'貸款',list:'loans',fields:[
     {k:'name',l:'名稱',t:'text'},{k:'rate',l:'年利率(%)',t:'number'},{k:'monthly',l:'每月還款',t:'number'},
     {k:'remaining',l:'剩餘本金',t:'number'},{k:'note',l:'備註',t:'text'}]},
@@ -498,7 +525,7 @@ async function cloudPull(silent){
     const r=await fetch(SYNC.url+'?token='+encodeURIComponent(SYNC.token)+'&t='+Date.now());
     const j=await r.json();
     if(j.error){setSync('金鑰錯誤','var(--red)');return false}
-    if(j.ok&&j.data){const obj=JSON.parse(j.data);if(obj&&obj.settings){DB=obj;lsSet(KEY,JSON.stringify(DB));render()}}
+    if(j.ok&&j.data){const obj=JSON.parse(j.data);if(obj&&obj.settings){DB=obj;migrate();lsSet(KEY,JSON.stringify(DB));render()}}
     setSync('已同步 '+nowTime(),'var(--accent2)');return true
   }catch(e){setSync('連線失敗','var(--red)');if(!silent)alert('下載失敗，請檢查網址與網路');return false}
 }
