@@ -3,12 +3,11 @@
  *
  * 功能：
  *  - 儲存/讀取整份記帳資料(JSON) → data 工作表 A1
- *  - 用內建 GOOGLEFINANCE 抓股價與匯率 → ?action=quotes
+ *  - 用 Yahoo 財經抓股價與匯率 → ?action=quotes
+ *    台股自動先試上市(.TW)再試上櫃(.TWO)，覆蓋率高，連威剛(3260,上櫃)都抓得到
  *
- * 使用步驟：
- * 1) 把下面 TOKEN 改成你自己的密碼(和 App 裡填的一模一樣)
- * 2) 部署 → 管理部署作業 → ✏️ 編輯 → 版本選「新版本」→ 部署
- *    (執行身分：我；誰可以存取：所有人)
+ * 改完記得：部署 → 管理部署作業 → ✏️ 編輯 → 版本選「新版本」→ 部署
+ *           (執行身分：我；誰可以存取：所有人)
  */
 
 const TOKEN = 'change-me-123';  // ← 改成你自己的密碼，和 App 裡填的要一模一樣
@@ -35,27 +34,37 @@ function doPost(e) {
   return out({ ok: true });
 }
 
-/** 用 GOOGLEFINANCE 抓報價；symbols 以逗號分隔，例如 TPE:2330,VOO */
+/** 抓報價：symbols 為原始代號逗號分隔，例如 2330,3260,VOO */
 function quotes(e) {
   const syms = (e.parameter.symbols || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-  const sh = dataSheet();
-  const COL = 30; // 用第 30 欄(AD)當暫存區，不會動到 A1
-  // 寫入報價公式
-  syms.forEach(function (s, i) {
-    sh.getRange(i + 1, COL).setFormula('=IFERROR(GOOGLEFINANCE("' + s + '","price"),"NA")');
-  });
-  // 匯率公式
-  sh.getRange(1, COL + 1).setFormula('=IFERROR(GOOGLEFINANCE("CURRENCY:USDTWD"),"NA")');
-  SpreadsheetApp.flush();
-  // 讀回
   const res = {};
-  syms.forEach(function (s, i) {
-    res[s] = sh.getRange(i + 1, COL).getValue();
-  });
-  const rate = sh.getRange(1, COL + 1).getValue();
-  // 清掉暫存
-  sh.getRange(1, COL, Math.max(syms.length, 1), 2).clearContent();
-  return out({ ok: true, quotes: res, rate: rate });
+  syms.forEach(function (sym) { res[sym] = priceOf(sym); });
+  const rate = yahoo('USDTWD=X');
+  return out({ ok: true, quotes: res, rate: (rate || 'NA') });
+}
+
+/** 判斷台股(數字代號)→先上市再上櫃；其餘當美股 */
+function priceOf(sym) {
+  if (/^\d+[A-Za-z]?$/.test(sym)) {
+    return yahoo(sym + '.TW') || yahoo(sym + '.TWO') || 'NA';
+  }
+  return yahoo(sym) || 'NA';
+}
+
+/** 呼叫 Yahoo 財經 chart API 取得最新價 */
+function yahoo(ysym) {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ysym) + '?interval=1d&range=1d';
+    const resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    const j = JSON.parse(resp.getContentText());
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    const p = meta && meta.regularMarketPrice;
+    return (typeof p === 'number' && p > 0) ? p : null;
+  } catch (err) { return null; }
 }
 
 function out(obj) {

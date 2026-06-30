@@ -512,13 +512,13 @@ async function cloudPush(){
 }
 function scheduleCloudPush(){if(!SYNC.url)return;clearTimeout(syncTimer);syncTimer=setTimeout(cloudPush,1500)}
 
-/* ---- 股價自動更新（透過 GOOGLEFINANCE） ---- */
-function gfTicker(s){const sym=(s.symbol||'').trim();if(!sym)return '';return /^\d+[A-Za-z]?$/.test(sym)?'TPE:'+sym:sym.toUpperCase()}
+/* ---- 股價自動更新（透過 Yahoo 財經，台股自動判斷上市/上櫃） ---- */
+function isTW(sym){return /^\d+[A-Za-z]?$/.test((sym||'').trim())}
 let lastQuoteMsg='';
 function setQuoteMsg(t){lastQuoteMsg=t;const el=document.getElementById('quoteMsg');if(el)el.textContent=t}
 async function updateQuotes(){
   if(!SYNC.url){alert('股價更新需透過你的 Google 試算表，請先在 ⚙ 設定完成雲端同步');return}
-  const syms=[...new Set(DB.stocks.map(gfTicker).filter(Boolean))];
+  const syms=[...new Set(DB.stocks.map(s=>(s.symbol||'').trim()).filter(Boolean))];
   if(!syms.length){setQuoteMsg('沒有可更新的持股');return}
   setQuoteMsg('更新中…');
   try{
@@ -526,9 +526,9 @@ async function updateQuotes(){
     const j=await r.json();
     if(j.error){setQuoteMsg('金鑰錯誤');return}
     let n=0,fail=[];
-    DB.stocks.forEach(s=>{const t=gfTicker(s);const p=j.quotes&&j.quotes[t];
-      if(typeof p==='number'&&p>0){s.price=Math.round(p*100)/100;s.currency=t.startsWith('TPE:')?'TWD':'USD';n++}
-      else if(t)fail.push(s.symbol)});
+    DB.stocks.forEach(s=>{const sym=(s.symbol||'').trim();const p=j.quotes&&j.quotes[sym];
+      if(typeof p==='number'&&p>0){s.price=Math.round(p*100)/100;s.currency=isTW(sym)?'TWD':'USD';n++}
+      else if(sym)fail.push(sym)});
     if(typeof j.rate==='number'&&j.rate>0)DB.settings.usdToTwd=Math.round(j.rate*1000)/1000;
     DB.settings.quotesAt=nowTime();
     save();
