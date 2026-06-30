@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家庭記帳系統 · Finance OS</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0f141c; --line:#1e2733;
+    --txt:#e6edf3; --muted:#8b98a8; --accent:#f59e0b; --accent2:#22c55e;
+    --red:#ef4444; --blue:#3b82f6; --cyan:#22d3ee; --purple:#a78bfa;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Noto Sans TC",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+  body.light{--bg:#f5f7fa;--panel:#ffffff;--panel2:#f0f3f7;--line:#e2e8f0;--txt:#1a2330;--muted:#64748b}
+  a{color:inherit}
+  .app{display:flex;min-height:100vh}
+
+  /* Sidebar */
+  .side{width:230px;background:var(--panel);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;padding:6px 8px 16px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#fb7185);display:grid;place-items:center;font-size:16px}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1}
+  .nav button{display:flex;align-items:center;gap:10px;background:none;border:none;color:var(--muted);padding:10px 12px;border-radius:10px;cursor:pointer;font-size:14px;text-align:left;width:100%}
+  .nav button:hover{background:var(--panel2);color:var(--txt)}
+  .nav button.active{background:var(--panel2);color:var(--txt);font-weight:600}
+  .nav .ic{width:20px;text-align:center}
+  .side-foot{font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;line-height:1.7}
+
+  /* Main */
+  .main{flex:1;padding:26px 30px;max-width:1400px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:16px;flex-wrap:wrap}
+  h1{margin:0;font-size:24px}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .tools{display:flex;gap:8px;align-items:center}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{background:none;border:none;color:var(--muted);padding:7px 14px;cursor:pointer;font-size:13px}
+  .seg button.active{background:var(--accent);color:#1a1205;font-weight:600}
+  .btn{background:var(--accent);color:#1a1205;border:none;padding:9px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px}
+  .btn.ghost{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .icon-btn{background:var(--panel);border:1px solid var(--line);color:var(--txt);width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:16px}
+
+  /* Cards */
+  .grid{display:grid;gap:16px}
+  .cards4{grid-template-columns:repeat(4,1fr)}
+  .cards3{grid-template-columns:repeat(3,1fr)}
+  .cards2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:1100px){.cards4{grid-template-columns:repeat(2,1fr)}.cards3{grid-template-columns:1fr}}
+  @media(max-width:680px){.cards4,.cards2{grid-template-columns:1fr}
+    .app{flex-direction:column}
+    .side{width:auto;height:auto;position:static;flex-direction:row;overflow-x:auto;gap:4px;padding:10px}
+    .brand{padding:0 10px 0 4px;white-space:nowrap}
+    .nav{flex-direction:row;flex:none}
+    .nav button{white-space:nowrap;padding:8px 10px}
+    .side-foot{display:none}
+    .main{padding:18px}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+  .card .label{color:var(--muted);font-size:13px;margin-bottom:8px}
+  .card .big{font-size:26px;font-weight:700}
+  .card .note{color:var(--muted);font-size:12px;margin-top:6px}
+  .pos{color:var(--accent2)} .neg{color:var(--red)}
+
+  /* Section */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-top:16px}
+  .panel h3{margin:0 0 14px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:11px 10px;font-size:13px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500;font-size:12px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:var(--panel2)}
+  .row-act{display:flex;gap:6px;justify-content:flex-end}
+  .link{color:var(--muted);cursor:pointer;font-size:12px}
+  .link:hover{color:var(--accent)}
+  .empty{color:var(--muted);text-align:center;padding:30px;font-size:13px}
+  .tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;background:var(--panel2);border:1px solid var(--line)}
+
+  /* Bars */
+  .bar-row{display:flex;align-items:center;gap:12px;margin:10px 0}
+  .bar-row .nm{width:80px;color:var(--muted);font-size:12px}
+  .bar-track{flex:1;height:10px;background:var(--panel2);border-radius:6px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px}
+  .bar-row .vl{width:130px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+
+  /* Modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:50;padding:20px}
+  .modal-bg.show{display:grid}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow:auto}
+  .modal h3{margin:0 0 16px}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  .field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:9px 11px;border-radius:9px;font-size:14px}
+  .field2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .modal-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:8px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="brand"><span class="logo">📌</span> Finance OS</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div id="lastSync"></div>
+      <div>1 USD = <span id="rateShow"></span> TWD</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn ghost sm" onclick="exportData()">匯出備份</button>
+        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">還原</button>
+        <input type="file" id="importFile" class="hide" accept=".json" onchange="importData(event)">
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">資產總覽</h1>
+        <div class="sub" id="pageSub">您的家庭資產彙總</div>
+      </div>
+      <div class="tools">
+        <div class="seg" id="curSeg">
+          <button data-cur="USD">USD</button>
+          <button data-cur="TWD" class="active">TWD</button>
+        </div>
+        <span id="syncPill" class="tag" style="display:none"></span>
+        <button class="icon-btn" onclick="openSettings()" title="設定與雲端同步">⚙️</button>
+        <button class="icon-btn" onclick="toggleTheme()" title="切換主題">🌙</button>
+      </div>
+    </div>
+    <div id="saveWarn" style="display:none;background:#7c2d12;color:#fed7aa;border:1px solid #9a3412;padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:13px">⚠️ 目前無法自動存檔（可能是用雙擊檔案方式開啟）。資料只會保留在這次瀏覽，請改用本機伺服器開啟，或記得隨時「匯出備份」。</div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn" id="modalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 資料層 ============ */
+const KEY='financeOS_v1';
+const DEFAULT={
+  settings:{currency:'TWD',usdToTwd:32},
+  accounts:[
+    {id:1,name:'錢包現金',type:'cash',balance:15000,note:''},
+    {id:2,name:'台新銀行',type:'bank',balance:280000,note:'主帳戶'},
+  ],
+  stocks:[
+    {id:1,platform:'台股',symbol:'2330',name:'台積電',shares:100,cost:600,price:1000,currency:'TWD',dividend:0},
+    {id:2,platform:'IB',symbol:'VOO',name:'Vanguard S&P500',shares:10,cost:400,price:520,currency:'USD',dividend:0},
+  ],
+  bonds:[
+    {id:1,name:'美國公債 ETF',amount:700500,coupon:4.2,currency:'TWD',note:''},
+  ],
+  assets:[
+    {id:1,name:'機車',category:'交通工具',value:45000,note:''},
+  ],
+  insurance:[
+    {id:1,name:'壽險保費',type:'壽險',premium:8500,freq:'年繳',insured:'本人',coverage:3000000,renewDate:'2026-04-15',payMethod:'bank_transfer'},
+  ],
+  subscriptions:[
+    {id:1,name:'Netflix',amount:270,currency:'TWD',cycle:'月',nextDate:'2026-07-12',payMethod:'credit_card_a'},
+    {id:2,name:'ChatGPT Plus',amount:20,currency:'USD',cycle:'月',nextDate:'2026-07-15',payMethod:'credit_card_a'},
+  ],
+  loans:[],
+  transactions:[
+    {id:1,date:'2026-06-28',desc:'全聯採買',category:'飲食',amount:1250,type:'expense',account:'台新銀行',payMethod:'信用卡'},
+    {id:2,date:'2026-06-25',desc:'薪資',category:'薪資',amount:65000,type:'income',account:'台新銀行',payMethod:'轉帳'},
+    {id:3,date:'2026-06-22',desc:'加油',category:'交通',amount:800,type:'expense',account:'錢包現金',payMethod:'現金'},
+  ],
+};
+// localStorage 安全包裝（file:// 或隱私模式下不會崩潰）
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
+let DB=load();
+function load(){try{const r=JSON.parse(lsGet(KEY));return r&&r.settings?r:structuredClone(DEFAULT)}catch(e){return structuredClone(DEFAULT)}}
+function save(){if(!lsSet(KEY,JSON.stringify(DB))){document.getElementById('saveWarn')&&(document.getElementById('saveWarn').style.display='block')}render();scheduleCloudPush()}
+function uid(arr){return arr.length?Math.max(...arr.map(x=>x.id))+1:1}
+
+/* ============ 換算與格式 ============ */
+function toTWD(amount,cur){return cur==='USD'?amount*DB.settings.usdToTwd:amount}
+function disp(twd){ // 依顯示幣別轉回
+  if(DB.settings.currency==='USD')return twd/DB.settings.usdToTwd;
+  return twd;
+}
+function fmt(twd,withSign){
+  const v=disp(twd);
+  const sym=DB.settings.currency==='USD'?'$':'NT$';
+  const s=sym+Math.round(v).toLocaleString();
+  return withSign&&twd>0?'+'+s:s;
+}
+
+/* ============ 計算 ============ */
+function sumAccounts(){return DB.accounts.reduce((a,x)=>a+x.balance,0)}
+function sumStocks(){return DB.stocks.reduce((a,x)=>a+toTWD(x.shares*x.price,x.currency),0)}
+function sumStocksCost(){return DB.stocks.reduce((a,x)=>a+toTWD(x.shares*x.cost,x.currency),0)}
+function sumBonds(){return DB.bonds.reduce((a,x)=>a+toTWD(x.amount,x.currency),0)}
+function sumAssets(){return DB.assets.reduce((a,x)=>a+x.value,0)}
+function sumLoans(){return DB.loans.reduce((a,x)=>a+(x.remaining||0),0)}
+function netWorth(){return sumAccounts()+sumStocks()+sumBonds()+sumAssets()-sumLoans()}
+function realizedPnL(){return DB.transactions.filter(t=>t.category==='已實現損益').reduce((a,t)=>a+(t.type==='income'?t.amount:-t.amount),0)}
+function monthlySubsTWD(){return DB.subscriptions.reduce((a,s)=>{let m=toTWD(s.amount,s.currency);if(s.cycle==='年')m/=12;return a+m},0)}
+function daysUntil(d){const t=new Date(d);const now=new Date('2026-06-30');return Math.ceil((t-now)/86400000)}
+
+/* ============ 導覽 ============ */
+const PAGES=[
+  {id:'overview',ic:'📊',name:'總覽',title:'資產總覽',sub:'您的家庭資產彙總'},
+  {id:'accounts',ic:'🏦',name:'現金/存款',title:'現金與銀行存款',sub:'管理你的活存與現金'},
+  {id:'stocks',ic:'📈',name:'股票紀錄',title:'股票投資',sub:'持股成本與市值'},
+  {id:'bonds',ic:'📜',name:'債券',title:'債券投資',sub:'債券部位與配息'},
+  {id:'assets',ic:'📦',name:'資產物品',title:'資產與物品',sub:'房產、車輛、貴重物品'},
+  {id:'insurance',ic:'🛡️',name:'保險',title:'保險保單',sub:'保費、保額與續約'},
+  {id:'subs',ic:'🔁',name:'訂閱',title:'每月訂閱',sub:'定期扣款追蹤'},
+  {id:'loans',ic:'💳',name:'貸款',title:'貸款負債',sub:'房貸、車貸、信貸'},
+  {id:'ledger',ic:'📖',name:'記帳管理',title:'收支記帳',sub:'日常收入與支出'},
+];
+let current='overview';
+function buildNav(){
+  document.getElementById('nav').innerHTML=PAGES.map(p=>
+    `<button class="${p.id===current?'active':''}" onclick="go('${p.id}')"><span class="ic">${p.ic}</span>${p.name}</button>`).join('');
+}
+function go(id){current=id;buildNav();render()}
+
+/* ============ 渲染 ============ */
+function render(){
+  const p=PAGES.find(x=>x.id===current);
+  document.getElementById('pageTitle').textContent=p.title;
+  document.getElementById('pageSub').textContent=p.sub;
+  document.getElementById('rateShow').textContent=DB.settings.usdToTwd;
+  document.getElementById('lastSync').textContent='最後同步：2026/6/30';
+  document.getElementById('view').innerHTML=({
+    overview:vOverview,accounts:vAccounts,stocks:vStocks,bonds:vBonds,
+    assets:vAssets,insurance:vInsurance,subs:vSubs,loans:vLoans,ledger:vLedger
+  })[current]();
+}
+
+/* ---- 總覽 ---- */
+function vOverview(){
+  const upcoming=[...DB.subscriptions.map(s=>({name:s.name,amt:toTWD(s.amount,s.currency),cur:s.currency,raw:s.amount,date:s.nextDate,pay:s.payMethod})),
+    ...DB.insurance.filter(i=>i.renewDate).map(i=>({name:i.name,amt:i.premium,cur:'TWD',raw:i.premium,date:i.renewDate,pay:i.payMethod}))]
+    .map(x=>({...x,d:daysUntil(x.date)})).filter(x=>x.d>=0&&x.d<=30).sort((a,b)=>a.d-b.d);
+  const tx=[...DB.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+  const breakdown=[
+    {nm:'現金存款',v:sumAccounts(),c:'var(--cyan)'},
+    {nm:'股票',v:sumStocks(),c:'var(--red)'},
+    {nm:'債券',v:sumBonds(),c:'var(--blue)'},
+    {nm:'資產物品',v:sumAssets(),c:'var(--purple)'},
+  ];
+  const total=breakdown.reduce((a,x)=>a+x.v,0)||1;
+  const stockPnl=sumStocks()-sumStocksCost();
+  return `
+  <div class="grid cards4">
+    <div class="card"><div class="label">總資產淨值</div><div class="big">${fmt(netWorth())}</div><div class="note">已扣除貸款 ${fmt(sumLoans())}</div></div>
+    <div class="card"><div class="label">投資未實現損益</div><div class="big ${stockPnl>=0?'pos':'neg'}">${fmt(stockPnl,true)}</div><div class="note">股票市值 − 成本</div></div>
+    <div class="card"><div class="label">每月固定訂閱</div><div class="big">${fmt(monthlySubsTWD())}</div><div class="note">共 ${DB.subscriptions.length} 項</div></div>
+    <div class="card"><div class="label">本月可投資現金</div><div class="big">${fmt(sumAccounts())}</div><div class="note">現金+存款合計</div></div>
+  </div>
+
+  <div class="grid cards2" style="margin-top:16px">
+    <div class="panel" style="margin-top:0">
+      <h3>資產配置占比</h3>
+      ${breakdown.map(b=>`<div class="bar-row"><div class="nm">${b.nm}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(b.v/total*100).toFixed(1)}%;background:${b.c}"></div></div>
+        <div class="vl">${fmt(b.v)} · ${(b.v/total*100).toFixed(0)}%</div></div>`).join('')}
+    </div>
+    <div class="panel" style="margin-top:0">
+      <h3>即將扣款 (30天內)</h3>
+      ${upcoming.length?upcoming.map(u=>`
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:600">${u.name}</div><div class="note">${u.date}（${u.d}天後）· ${u.pay||''}</div></div>
+          <div style="text-align:right"><div class="neg" style="font-weight:600">${u.cur==='USD'?'$'+u.raw:'NT$'+u.raw.toLocaleString()}</div></div>
+        </div>`).join(''):'<div class="empty">近期沒有即將到期的扣款</div>'}
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>最新收支 <button class="btn sm" onclick="go('ledger')">前往記帳</button></h3>
+    <table><thead><tr><th>日期</th><th>描述</th><th>分類</th><th>帳戶</th><th class="num">金額</th></tr></thead><tbody>
+    ${tx.length?tx.map(t=>`<tr><td>${t.date}</td><td>${t.desc}</td><td><span class="tag">${t.category}</span></td><td>${t.account||''}</td>
+      <td class="num ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'−'}${fmt(t.amount).replace(/^[+]/,'')}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">尚無紀錄</td></tr>'}
+    </tbody></table>
+  </div>`;
+}
+
+/* ---- 通用表格頁 ---- */
+function pageHead(title,onAdd){return `<div class="panel"><h3>${title}<button class="btn sm" onclick="${onAdd}">＋ 新增</button></h3>`}
+function actBtns(type,id){return `<div class="row-act"><span class="link" onclick="openForm('${type}',${id})">編輯</span><span class="link" onclick="del('${type}',${id})">刪除</span></div>`}
+
+/* ---- 現金/存款 ---- */
+function vAccounts(){
+  const cash=DB.accounts.filter(a=>a.type==='cash').reduce((s,a)=>s+a.balance,0);
+  const bank=DB.accounts.filter(a=>a.type==='bank').reduce((s,a)=>s+a.balance,0);
+  return `<div class="grid cards3">
+    <div class="card"><div class="label">現金合計</div><div class="big">${fmt(cash)}</div></div>
+    <div class="card"><div class="label">銀行存款合計</div><div class="big">${fmt(bank)}</div></div>
+    <div class="card"><div class="label">總計</div><div class="big">${fmt(cash+bank)}</div></div>
+  </div>`+
+  pageHead('帳戶明細',"openForm('accounts')")+
+  `<table><thead><tr><th>名稱</th><th>類型</th><th>備註</th><th class="num">餘額</th><th class="num"></th></tr></thead><tbody>
+  ${DB.accounts.map(a=>`<tr><td>${a.name}</td><td><span class="tag">${a.type==='cash'?'現金':'銀行'}</span></td><td>${a.note||''}</td>
+    <td class="num">${fmt(a.balance)}</td><td>${actBtns('accounts',a.id)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">尚無帳戶</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 股票 ---- */
+function vStocks(){
+  const mv=sumStocks(),cost=sumStocksCost(),pnl=mv-cost;
+  return `<div class="grid cards3">
+    <div class="card"><div class="label">股票總市值</div><div class="big">${fmt(mv)}</div></div>
+    <div class="card"><div class="label">投入成本</div><div class="big">${fmt(cost)}</div></div>
+    <div class="card"><div class="label">未實現損益</div><div class="big ${pnl>=0?'pos':'neg'}">${fmt(pnl,true)} (${cost?((pnl/cost)*100).toFixed(1):0}%)</div></div>
+  </div>`+
+  pageHead('持股明細',"openForm('stocks')")+
+  `<table><thead><tr><th>平台</th><th>代號</th><th>名稱</th><th class="num">股數</th><th class="num">成本</th><th class="num">現價</th><th class="num">市值</th><th class="num">損益</th><th></th></tr></thead><tbody>
+  ${DB.stocks.map(s=>{const mvi=toTWD(s.shares*s.price,s.currency),ci=toTWD(s.shares*s.cost,s.currency),pn=mvi-ci;
+    return `<tr><td><span class="tag">${s.platform}</span></td><td>${s.symbol}</td><td>${s.name}</td><td class="num">${s.shares}</td>
+    <td class="num">${s.cost}</td><td class="num">${s.price}</td><td class="num">${fmt(mvi)}</td>
+    <td class="num ${pn>=0?'pos':'neg'}">${fmt(pn,true)}</td><td>${actBtns('stocks',s.id)}</td></tr>`}).join('')||'<tr><td colspan="9" class="empty">尚無持股</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 債券 ---- */
+function vBonds(){
+  return `<div class="grid cards2">
+    <div class="card"><div class="label">債券總額</div><div class="big">${fmt(sumBonds())}</div></div>
+    <div class="card"><div class="label">預估年配息</div><div class="big">${fmt(DB.bonds.reduce((a,b)=>a+toTWD(b.amount,b.currency)*(b.coupon||0)/100,0))}</div></div>
+  </div>`+
+  pageHead('債券明細',"openForm('bonds')")+
+  `<table><thead><tr><th>名稱</th><th class="num">金額</th><th class="num">票面利率</th><th>備註</th><th></th></tr></thead><tbody>
+  ${DB.bonds.map(b=>`<tr><td>${b.name}</td><td class="num">${fmt(toTWD(b.amount,b.currency))}</td><td class="num">${b.coupon||0}%</td><td>${b.note||''}</td><td>${actBtns('bonds',b.id)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">尚無債券</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 資產物品 ---- */
+function vAssets(){
+  return `<div class="card" style="max-width:300px"><div class="label">資產物品總值</div><div class="big">${fmt(sumAssets())}</div></div>`+
+  pageHead('物品明細',"openForm('assets')")+
+  `<table><thead><tr><th>名稱</th><th>分類</th><th>備註</th><th class="num">價值</th><th></th></tr></thead><tbody>
+  ${DB.assets.map(a=>`<tr><td>${a.name}</td><td><span class="tag">${a.category||''}</span></td><td>${a.note||''}</td><td class="num">${fmt(a.value)}</td><td>${actBtns('assets',a.id)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">尚無物品</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 保險 ---- */
+function vInsurance(){
+  const yearly=DB.insurance.reduce((a,i)=>a+(i.freq==='月繳'?i.premium*12:i.premium),0);
+  return `<div class="grid cards2">
+    <div class="card"><div class="label">年化保費</div><div class="big">${fmt(yearly)}</div></div>
+    <div class="card"><div class="label">總保額</div><div class="big">${fmt(DB.insurance.reduce((a,i)=>a+(i.coverage||0),0))}</div></div>
+  </div>`+
+  pageHead('保單明細',"openForm('insurance')")+
+  `<table><thead><tr><th>保單</th><th>類型</th><th>被保人</th><th>繳別</th><th class="num">保費</th><th class="num">保額</th><th>續約日</th><th></th></tr></thead><tbody>
+  ${DB.insurance.map(i=>`<tr><td>${i.name}</td><td><span class="tag">${i.type||''}</span></td><td>${i.insured||''}</td><td>${i.freq||''}</td>
+    <td class="num">${fmt(i.premium)}</td><td class="num">${fmt(i.coverage||0)}</td><td>${i.renewDate||''}</td><td>${actBtns('insurance',i.id)}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">尚無保單</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 訂閱 ---- */
+function vSubs(){
+  return `<div class="grid cards2">
+    <div class="card"><div class="label">每月訂閱合計</div><div class="big">${fmt(monthlySubsTWD())}</div></div>
+    <div class="card"><div class="label">年化支出</div><div class="big">${fmt(monthlySubsTWD()*12)}</div></div>
+  </div>`+
+  pageHead('訂閱明細',"openForm('subs')")+
+  `<table><thead><tr><th>服務</th><th>週期</th><th>下次扣款</th><th>付款方式</th><th class="num">金額</th><th></th></tr></thead><tbody>
+  ${DB.subscriptions.map(s=>{const d=daysUntil(s.nextDate);
+    return `<tr><td>${s.name}</td><td><span class="tag">${s.cycle}繳</span></td><td>${s.nextDate||''} ${d>=0&&d<=14?`<span class="neg">(${d}天)</span>`:''}</td><td>${s.payMethod||''}</td>
+    <td class="num">${s.currency==='USD'?'$'+s.amount:'NT$'+s.amount.toLocaleString()}</td><td>${actBtns('subs',s.id)}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">尚無訂閱</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 貸款 ---- */
+function vLoans(){
+  return `<div class="grid cards2">
+    <div class="card"><div class="label">未償還總額</div><div class="big neg">${fmt(sumLoans())}</div></div>
+    <div class="card"><div class="label">每月還款</div><div class="big">${fmt(DB.loans.reduce((a,l)=>a+(l.monthly||0),0))}</div></div>
+  </div>`+
+  pageHead('貸款明細',"openForm('loans')")+
+  `<table><thead><tr><th>名稱</th><th class="num">利率</th><th class="num">每月還款</th><th class="num">剩餘本金</th><th>備註</th><th></th></tr></thead><tbody>
+  ${DB.loans.map(l=>`<tr><td>${l.name}</td><td class="num">${l.rate||0}%</td><td class="num">${fmt(l.monthly||0)}</td><td class="num neg">${fmt(l.remaining||0)}</td><td>${l.note||''}</td><td>${actBtns('loans',l.id)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">尚無貸款，太棒了！</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ---- 記帳 ---- */
+function vLedger(){
+  const now='2026-06';
+  const monthTx=DB.transactions.filter(t=>t.date.startsWith(now));
+  const inc=monthTx.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0);
+  const exp=monthTx.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
+  const tx=[...DB.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  return `<div class="grid cards3">
+    <div class="card"><div class="label">本月收入</div><div class="big pos">${fmt(inc)}</div></div>
+    <div class="card"><div class="label">本月支出</div><div class="big neg">${fmt(exp)}</div></div>
+    <div class="card"><div class="label">本月結餘</div><div class="big ${inc-exp>=0?'pos':'neg'}">${fmt(inc-exp,true)}</div></div>
+  </div>`+
+  pageHead('收支明細',"openForm('tx')")+
+  `<table><thead><tr><th>日期</th><th>描述</th><th>分類</th><th>帳戶</th><th>付款</th><th class="num">金額</th><th></th></tr></thead><tbody>
+  ${tx.map(t=>`<tr><td>${t.date}</td><td>${t.desc}</td><td><span class="tag">${t.category}</span></td><td>${t.account||''}</td><td>${t.payMethod||''}</td>
+    <td class="num ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'−'}${fmt(t.amount).replace(/^[+]/,'')}</td><td>${actBtns('tx',t.id)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">尚無紀錄</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ============ 表單 ============ */
+const FORMS={
+  accounts:{title:'帳戶',list:'accounts',fields:[
+    {k:'name',l:'名稱',t:'text'},{k:'type',l:'類型',t:'select',o:[['cash','現金'],['bank','銀行']]},
+    {k:'balance',l:'餘額(TWD)',t:'number'},{k:'note',l:'備註',t:'text'}]},
+  stocks:{title:'持股',list:'stocks',fields:[
+    {k:'platform',l:'平台',t:'select',o:[['台股','台股'],['IB','IB'],['FT','FT'],['其他','其他']]},
+    {k:'symbol',l:'代號',t:'text'},{k:'name',l:'名稱',t:'text'},{k:'shares',l:'股數',t:'number'},
+    {k:'cost',l:'平均成本',t:'number'},{k:'price',l:'現價',t:'number'},
+    {k:'currency',l:'幣別',t:'select',o:[['TWD','TWD'],['USD','USD']]}]},
+  bonds:{title:'債券',list:'bonds',fields:[
+    {k:'name',l:'名稱',t:'text'},{k:'amount',l:'金額',t:'number'},{k:'coupon',l:'票面利率(%)',t:'number'},
+    {k:'currency',l:'幣別',t:'select',o:[['TWD','TWD'],['USD','USD']]},{k:'note',l:'備註',t:'text'}]},
+  assets:{title:'資產物品',list:'assets',fields:[
+    {k:'name',l:'名稱',t:'text'},{k:'category',l:'分類',t:'text'},{k:'value',l:'價值(TWD)',t:'number'},{k:'note',l:'備註',t:'text'}]},
+  insurance:{title:'保單',list:'insurance',fields:[
+    {k:'name',l:'保單名稱',t:'text'},{k:'type',l:'類型',t:'select',o:[['壽險','壽險'],['醫療','醫療'],['意外','意外'],['儲蓄','儲蓄'],['車險','車險'],['其他','其他']]},
+    {k:'insured',l:'被保人',t:'text'},{k:'freq',l:'繳別',t:'select',o:[['年繳','年繳'],['月繳','月繳'],['半年繳','半年繳']]},
+    {k:'premium',l:'保費(TWD)',t:'number'},{k:'coverage',l:'保額(TWD)',t:'number'},{k:'renewDate',l:'續約/扣款日',t:'date'},{k:'payMethod',l:'付款方式',t:'text'}]},
+  subs:{title:'訂閱',list:'subscriptions',fields:[
+    {k:'name',l:'服務名稱',t:'text'},{k:'amount',l:'金額',t:'number'},
+    {k:'currency',l:'幣別',t:'select',o:[['TWD','TWD'],['USD','USD']]},
+    {k:'cycle',l:'週期',t:'select',o:[['月','月'],['年','年']]},{k:'nextDate',l:'下次扣款日',t:'date'},{k:'payMethod',l:'付款方式',t:'text'}]},
+  loans:{title:'貸款',list:'loans',fields:[
+    {k:'name',l:'名稱',t:'text'},{k:'rate',l:'年利率(%)',t:'number'},{k:'monthly',l:'每月還款',t:'number'},
+    {k:'remaining',l:'剩餘本金',t:'number'},{k:'note',l:'備註',t:'text'}]},
+  tx:{title:'收支紀錄',list:'transactions',fields:[
+    {k:'date',l:'日期',t:'date'},{k:'desc',l:'描述',t:'text'},
+    {k:'type',l:'收/支',t:'select',o:[['expense','支出'],['income','收入']]},
+    {k:'category',l:'分類',t:'text'},{k:'amount',l:'金額(TWD)',t:'number'},
+    {k:'account',l:'帳戶',t:'text'},{k:'payMethod',l:'付款方式',t:'text'}]},
+};
+let editing={type:null,id:null};
+function openForm(type,id){
+  const f=FORMS[type];editing={type,id:id||null};
+  const item=id?DB[f.list].find(x=>x.id===id):{};
+  document.getElementById('modalTitle').textContent=(id?'編輯':'新增')+f.title;
+  document.getElementById('modalBody').innerHTML=f.fields.map((fl,i)=>{
+    const val=item[fl.k]!==undefined?item[fl.k]:'';
+    const wrap=s=>`<div class="field"><label>${fl.l}</label>${s}</div>`;
+    if(fl.t==='select')return wrap(`<select id="f_${fl.k}">${fl.o.map(o=>`<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`);
+    return wrap(`<input id="f_${fl.k}" type="${fl.t}" value="${val}">`);
+  }).join('');
+  document.getElementById('modalSave').onclick=()=>saveForm(type);
+  document.getElementById('modalBg').classList.add('show');
+}
+function saveForm(type){
+  const f=FORMS[type];const obj={};
+  f.fields.forEach(fl=>{let v=document.getElementById('f_'+fl.k).value;if(fl.t==='number')v=parseFloat(v)||0;obj[fl.k]=v});
+  const list=DB[f.list];
+  if(editing.id){const it=list.find(x=>x.id===editing.id);Object.assign(it,obj)}
+  else{obj.id=uid(list);list.push(obj)}
+  closeModal();save();
+}
+function del(type,id){const f=FORMS[type];if(confirm('確定刪除？')){DB[f.list]=DB[f.list].filter(x=>x.id!==id);save()}}
+function closeModal(){document.getElementById('modalBg').classList.remove('show')}
+
+/* ============ 設定/工具 ============ */
+document.getElementById('curSeg').addEventListener('click',e=>{
+  if(e.target.dataset.cur){DB.settings.currency=e.target.dataset.cur;
+    [...document.querySelectorAll('#curSeg button')].forEach(b=>b.classList.toggle('active',b.dataset.cur===e.target.dataset.cur));
+    save()}
+});
+function toggleTheme(){document.body.classList.toggle('light');lsSet('foTheme',document.body.classList.contains('light')?'light':'dark')}
+function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='finance-backup-2026-06-30.json';a.click()}
+function importData(e){const fr=new FileReader();fr.onload=()=>{try{DB=JSON.parse(fr.result);save();alert('還原成功')}catch(x){alert('檔案格式錯誤')}};fr.readAsText(e.target.files[0])}
+
+/* ============ 雲端同步（Google 試算表 Apps Script） ============ */
+// 同步設定存在獨立位置，避免被雲端資料覆蓋
+let SYNC={url:lsGet('foSyncUrl')||'',token:lsGet('foSyncToken')||''};
+let syncTimer=null;
+function nowTime(){const d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)}
+function setSync(txt,color){const p=document.getElementById('syncPill');if(!p)return;
+  if(!SYNC.url){p.style.display='none';return}
+  p.style.display='inline-block';p.textContent='☁ '+txt;p.style.color=color||'var(--muted)'}
+async function cloudPull(silent){
+  if(!SYNC.url)return;setSync('下載中…');
+  try{
+    const r=await fetch(SYNC.url+'?token='+encodeURIComponent(SYNC.token)+'&t='+Date.now());
+    const j=await r.json();
+    if(j.error){setSync('金鑰錯誤','var(--red)');return false}
+    if(j.ok&&j.data){const obj=JSON.parse(j.data);if(obj&&obj.settings){DB=obj;lsSet(KEY,JSON.stringify(DB));render()}}
+    setSync('已同步 '+nowTime(),'var(--accent2)');return true
+  }catch(e){setSync('連線失敗','var(--red)');if(!silent)alert('下載失敗，請檢查網址與網路');return false}
+}
+async function cloudPush(){
+  if(!SYNC.url)return;setSync('上傳中…');
+  try{
+    await fetch(SYNC.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:SYNC.token,data:JSON.stringify(DB)})});
+    setSync('已同步 '+nowTime(),'var(--accent2)');return true
+  }catch(e){setSync('上傳失敗','var(--red)');return false}
+}
+function scheduleCloudPush(){if(!SYNC.url)return;clearTimeout(syncTimer);syncTimer=setTimeout(cloudPush,1500)}
+
+function openSettings(){
+  document.getElementById('modalTitle').textContent='設定與雲端同步';
+  document.getElementById('modalBody').innerHTML=`
+    <div class="field"><label>USD → TWD 匯率</label><input id="s_rate" type="number" value="${DB.settings.usdToTwd}"></div>
+    <div style="border-top:1px solid var(--line);margin:16px 0 12px;padding-top:12px;font-weight:600">☁ Google 試算表同步</div>
+    <div class="field"><label>Apps Script 網址（/exec 結尾）</label><input id="s_url" type="text" placeholder="https://script.google.com/macros/s/.../exec" value="${SYNC.url}"></div>
+    <div class="field"><label>同步金鑰（要和 Apps Script 裡的 TOKEN 一樣）</label><input id="s_token" type="text" placeholder="自訂一組密碼" value="${SYNC.token}"></div>
+    <div style="display:flex;gap:8px;margin:6px 0 4px">
+      <button class="btn ghost sm" onclick="cloudPull()">⬇ 立即下載</button>
+      <button class="btn ghost sm" onclick="cloudPush()">⬆ 立即上傳</button>
+    </div>
+    <div class="note" style="line-height:1.6">第一次設定：填好網址與金鑰後按「儲存」，再按一次「⬆ 立即上傳」把目前資料推上雲端。換手機/電腦時，填一樣的網址金鑰後按「⬇ 立即下載」即可。</div>`;
+  document.getElementById('modalSave').onclick=saveSettings;
+  document.getElementById('modalBg').classList.add('show');
+}
+function saveSettings(){
+  DB.settings.usdToTwd=parseFloat(document.getElementById('s_rate').value)||32;
+  SYNC.url=document.getElementById('s_url').value.trim();
+  SYNC.token=document.getElementById('s_token').value.trim();
+  lsSet('foSyncUrl',SYNC.url);lsSet('foSyncToken',SYNC.token);
+  closeModal();save();setSync(SYNC.url?'已設定':'',null);
+}
+
+/* ============ 啟動 ============ */
+if(lsGet('foTheme')==='light')document.body.classList.add('light');
+buildNav();render();
+if(SYNC.url){setSync('準備中…');cloudPull(true)}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+</script>
+</body>
+</html>
