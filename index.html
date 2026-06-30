@@ -532,7 +532,9 @@ async function updateQuotes(){
     if(typeof j.rate==='number'&&j.rate>0)DB.settings.usdToTwd=Math.round(j.rate*1000)/1000;
     DB.settings.quotesAt=nowTime();
     save();
-    setQuoteMsg('已更新 '+nowTime()+'（成功 '+n+' 檔'+(fail.length?'，查無：'+fail.join('、'):'')+'）');
+    const okSrc=[...new Set(Object.values(j.sources||{}).filter(v=>v&&v!=='-'))].join('/');
+    setQuoteMsg('已更新 '+nowTime()+'（成功 '+n+' 檔'+(okSrc?'，來源:'+okSrc:'')+(fail.length?'，查無：'+fail.join('、'):'')+'）');
+    if(n===0)alert('股價更新診斷（請截圖給開發者）：\n'+JSON.stringify(j).slice(0,600));
   }catch(e){setQuoteMsg('更新失敗，請檢查網路或同步設定')}
 }
 
